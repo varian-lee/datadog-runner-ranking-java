@@ -9,7 +9,6 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.jdbc.core.JdbcTemplate;
-
 /**
  * 🏆 Ranking Service (Java Spring Boot) - Datadog APM 디버깅 시나리오
  * 
@@ -99,7 +98,7 @@ public class RankingController {
   // PostgreSQL에서 복잡한 랭킹 쿼리 (Connection Pool 고갈 시나리오)
   private List<Map<String, Object>> fetchFromPostgreSQL(int limit) {
     try {
-      logger.info("1단계: PostgreSQL에서 랭킹 데이터 조회!!!!!");
+      logger.info("1단계: PostgreSQL에서 랭킹 데이터 조회~~~");
 
       // 10개씩 chunk로 나누어서 sequential하게 처리
       final int CHUNK_SIZE = Database.CHUNK_SIZE;
