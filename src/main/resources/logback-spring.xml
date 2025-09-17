@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<configuration>
+    <!-- JSON Console Appender - Datadog 자동 correlation -->
+    <appender name="JSON_CONSOLE" class="ch.qos.logback.core.ConsoleAppender">
+        <encoder class="net.logstash.logback.encoder.LogstashEncoder">
+            <!-- Datadog에서 자동 인식하는 필드명 사용 -->
+            <includeContext>true</includeContext>
+            <includeMdc>true</includeMdc>
+        </encoder>
+    </appender>
+
+
+    <!-- Root Logger - JSON 형식으로 출력 -->
+    <root level="INFO">
+        <appender-ref ref="JSON_CONSOLE" />
+    </root>
+
+    <!-- App Logger - DEBUG level for detailed tracing -->
+    <logger name="app" level="DEBUG" additivity="false">
+        <appender-ref ref="JSON_CONSOLE" />
+    </logger>
+
+    <!-- SQL Query Logger -->
+    <logger name="org.hibernate.SQL" level="DEBUG" additivity="false">
+        <appender-ref ref="JSON_CONSOLE" />
+    </logger>
+    
+    <!-- Hibernate Parameter Logger -->
+    <logger name="org.hibernate.type.descriptor.sql.BasicBinder" level="TRACE" additivity="false">
+        <appender-ref ref="JSON_CONSOLE" />
+    </logger>
+
+    <!-- Profile별 설정 - 모든 환경에서 JSON 로그만 사용 -->
+    <!-- 개발/운영 환경 구분 없이 모든 로그를 JSON으로 출력 -->
+</configuration>
