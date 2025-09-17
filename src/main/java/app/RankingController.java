@@ -71,28 +71,22 @@ public class RankingController {
 
   @GetMapping("/rankings/top")
   public List<Map<String, Object>> top(@RequestParam(value = "limit", defaultValue = "10") int limit) {
-    try {
-      long requestStartTime = System.currentTimeMillis();
+    long requestStartTime = System.currentTimeMillis();
 
-      logger.info("PostgreSQL 랭킹 조회 시작 - limit: {}", limit);
+    logger.info("PostgreSQL 랭킹 조회 시작 - limit: {}", limit);
 
-      // 1단계: PostgreSQL 랭킹 쿼리 - 조금 복잡하게
-      List<Map<String, Object>> dbResult = fetchFromPostgreSQL(limit);
+    // 1단계: PostgreSQL 랭킹 쿼리 - 조금 복잡하게
+    List<Map<String, Object>> dbResult = fetchFromPostgreSQL(limit);
 
-      // 2단계: 사용자 프로필 정보 추가
-      List<Map<String, Object>> enrichedResult = enrichWithUserProfiles(dbResult);
+    // 2단계: 사용자 프로필 정보 추가
+    List<Map<String, Object>> enrichedResult = enrichWithUserProfiles(dbResult);
 
-      long totalDuration = System.currentTimeMillis() - requestStartTime;
+    long totalDuration = System.currentTimeMillis() - requestStartTime;
 
-      logger.info("요청 처리 완료 - 소요시간: {}ms, 결과: {}개",
-          totalDuration, enrichedResult.size());
+    logger.info("요청 처리 완료 - 소요시간: {}ms, 결과: {}개",
+        totalDuration, enrichedResult.size());
 
-      return enrichedResult;
-
-    } catch (Exception e) {
-      logger.error("요청 처리 실패: {}", e.getMessage(), e);
-      throw new RuntimeException("랭킹 조회 실패: " + e.getMessage(), e);
-    }
+    return enrichedResult;
   }
 
   // PostgreSQL에서 복잡한 랭킹 쿼리 (Connection Pool 고갈 시나리오)
@@ -187,9 +181,12 @@ public class RankingController {
 
       return formattedResult;
 
+    } catch (org.springframework.dao.DataAccessException e) {
+      logger.error("데이터베이스 접근 오류: {}", e.getMessage());
+      throw new RuntimeException("데이터베이스 연결 실패: " + e.getMessage(), e);
     } catch (Exception e) {
-      logger.error("PostgreSQL 데이터 조회 실패: {}", e.getMessage());
-      throw e;
+      logger.error("PostgreSQL 데이터 조회 중 예상치 못한 오류: {}", e.getMessage());
+      throw new RuntimeException("데이터 조회 실패: " + e.getMessage(), e);
     }
   }
 
@@ -197,6 +194,10 @@ public class RankingController {
   private List<Map<String, Object>> enrichWithUserProfiles(List<Map<String, Object>> dbResult) {
     try {
       logger.info("2단계: 사용자 프로필 정보 추가");
+
+      if (dbResult == null) {
+        throw new IllegalArgumentException("입력 데이터가 NULL입니다");
+      }
 
       List<Map<String, Object>> enrichedResult = new ArrayList<>();
 
@@ -226,9 +227,15 @@ public class RankingController {
 
       return enrichedResult;
 
+    } catch (IllegalArgumentException e) {
+      logger.error("잘못된 입력으로 인한 프로필 처리 실패: {}", e.getMessage());
+      throw new RuntimeException("입력 데이터 오류: " + e.getMessage(), e);
+    } catch (NullPointerException e) {
+      logger.error("NULL 참조로 인한 프로필 처리 실패: {}", e.getMessage(), e);
+      throw new RuntimeException("데이터 무결성 오류 - NULL 참조: " + e.getMessage(), e);
     } catch (Exception e) {
-      logger.error("사용자 프로필 정보 추가 실패: {}", e.getMessage());
-      throw e;
+      logger.error("사용자 프로필 정보 추가 중 예상치 못한 오류: {}", e.getMessage(), e);
+      throw new RuntimeException("프로필 처리 실패: " + e.getMessage(), e);
     }
   }
 
