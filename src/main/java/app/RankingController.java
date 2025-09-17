@@ -230,10 +230,14 @@ public class RankingController {
     } catch (IllegalArgumentException e) {
       logger.error("잘못된 입력으로 인한 프로필 처리 실패: {}", e.getMessage());
       throw new RuntimeException("입력 데이터 오류: " + e.getMessage(), e);
-    } catch (Exception e) {
-      logger.error("사용자 프로필 정보 추가 중 예상치 못한 오류: {}", e.getMessage(), e);
-      throw new RuntimeException("프로필 처리 실패: " + e.getMessage(), e);
     }
+    // catch (NullPointerException e) {
+    // logger.error("NULL 참조로 인한 프로필 처리 실패: {}", e.getMessage(), e);
+    // throw new RuntimeException("데이터 무결성 오류 - NULL 참조: " + e.getMessage(), e);
+    // } catch (Exception e) {
+    // logger.error("사용자 프로필 정보 추가 중 예상치 못한 오류: {}", e.getMessage(), e);
+    // throw new RuntimeException("프로필 처리 실패: " + e.getMessage(), e);
+    // }
   }
 
   // 점수 기반 레벨 계산
