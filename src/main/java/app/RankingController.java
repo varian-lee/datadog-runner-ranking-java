@@ -1,5 +1,15 @@
 package app;
 
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.jdbc.core.JdbcTemplate;
+
 /**
  * 🏆 Ranking Service (Java Spring Boot) - Datadog APM 디버깅 시나리오
  * 
@@ -18,45 +28,39 @@ package app;
  * - 에러 조건 분기점에서 디버깅 포인트 설정
  * - 분산 트레이싱으로 전체 요청 플로우 추적
  */
+import org.springframework.web.bind.annotation.CrossOrigin;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.RequestMethod;
+import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.bind.annotation.RestController;
 
-import org.springframework.web.bind.annotation.*;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.jdbc.core.JdbcTemplate;
-import java.util.*;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-import static app.Constants.UserIdPatterns;
-import static app.Constants.Business;
-import static app.Constants.Database;
+import app.Constants.Business;
+import app.Constants.Database;
+import app.Constants.UserIdPatterns;
 
 @RestController
-@CrossOrigin(
-    origins = "*",
-    allowedHeaders = {
-        "*",
-        "x-datadog-trace-id",
-        "x-datadog-parent-id", 
-        "x-datadog-origin",
-        "x-datadog-sampling-priority",
-        "traceparent",
-        "tracestate",
-        "b3"
-    },
-    exposedHeaders = {
-        "x-datadog-trace-id",
-        "x-datadog-parent-id",
-        "traceparent",
-        "tracestate"
-    },
-    methods = {RequestMethod.GET, RequestMethod.POST, RequestMethod.PUT, RequestMethod.DELETE, RequestMethod.OPTIONS}
-)
+@CrossOrigin(origins = "*", allowedHeaders = {
+    "*",
+    "x-datadog-trace-id",
+    "x-datadog-parent-id",
+    "x-datadog-origin",
+    "x-datadog-sampling-priority",
+    "traceparent",
+    "tracestate",
+    "b3"
+}, exposedHeaders = {
+    "x-datadog-trace-id",
+    "x-datadog-parent-id",
+    "traceparent",
+    "tracestate"
+}, methods = { RequestMethod.GET, RequestMethod.POST, RequestMethod.PUT, RequestMethod.DELETE, RequestMethod.OPTIONS })
 public class RankingController {
-    
+
   private final Logger logger = LoggerFactory.getLogger(RankingController.class);
 
   @Autowired
   private JdbcTemplate jdbcTemplate;
-  
+
   // 헬스체크 엔드포인트 - ALB 헬스체크용
   @GetMapping("/")
   public Map<String, Object> healthCheck() {
@@ -67,17 +71,17 @@ public class RankingController {
   }
 
   @GetMapping("/rankings/top")
-  public List<Map<String,Object>> top(@RequestParam(value="limit", defaultValue="10") int limit) {
+  public List<Map<String, Object>> top(@RequestParam(value = "limit", defaultValue = "10") int limit) {
     try {
       long requestStartTime = System.currentTimeMillis();
 
       logger.info("PostgreSQL 랭킹 조회 시작 - limit: {}", limit);
 
       // 1단계: PostgreSQL 랭킹 쿼리 - 조금 복잡하게
-      List<Map<String,Object>> dbResult = fetchFromPostgreSQL(limit);
+      List<Map<String, Object>> dbResult = fetchFromPostgreSQL(limit);
 
       // 2단계: 사용자 프로필 정보 추가
-      List<Map<String,Object>> enrichedResult = enrichWithUserProfiles(dbResult);
+      List<Map<String, Object>> enrichedResult = enrichWithUserProfiles(dbResult);
 
       long totalDuration = System.currentTimeMillis() - requestStartTime;
 
@@ -93,9 +97,9 @@ public class RankingController {
   }
 
   // PostgreSQL에서 복잡한 랭킹 쿼리 (Connection Pool 고갈 시나리오)
-  private List<Map<String,Object>> fetchFromPostgreSQL(int limit) {
+  private List<Map<String, Object>> fetchFromPostgreSQL(int limit) {
     try {
-      logger.info("1단계: PostgreSQL에서 랭킹 데이터 조회");
+      logger.info("1단계: PostgreSQL에서 랭킹 데이터 조회!!!!!");
 
       // 10개씩 chunk로 나누어서 sequential하게 처리
       final int CHUNK_SIZE = Database.CHUNK_SIZE;
@@ -110,7 +114,7 @@ public class RankingController {
       }
 
       // Sequential pagination 쿼리 실행
-      List<Map<String,Object>> allResults = new ArrayList<>();
+      List<Map<String, Object>> allResults = new ArrayList<>();
 
       for (int chunkIndex = 0; chunkIndex < totalChunks; chunkIndex++) {
         int offset = chunkIndex * CHUNK_SIZE;
@@ -121,32 +125,33 @@ public class RankingController {
 
         // Connection을 더 오래 보유하는 쿼리 - pg_sleep() 으로 지연 시간 추가
         double sleepSeconds = 0.002; // 기본 2ms
-        
+
         // pg_sleep 단계별 조정 (10개 미만=2ms, 10-19개=5ms, 20개+=제곱증가)
         if (totalChunks >= 19) {
           // 200개 이상 (20+ chunks): 제곱 증가로 극심한 타임아웃 유도
-          double baseSleep = 0.005; // 5ms 
+          double baseSleep = 0.005; // 5ms
           double progressiveSleep = (chunkIndex * chunkIndex * 2) / 1000.0; // ms -> seconds
           sleepSeconds = baseSleep + progressiveSleep;
         } else if (totalChunks >= 10) {
           // 100개 (10-19 chunks): 일정한 부하로 적당한 부하 유도
           sleepSeconds = 0.005; // 5ms 고정
         }
-        
+
         String paginationSql = "SELECT " +
-          "user_id, " +
-          "MAX(high_score) as high_score, " +
-          "MAX(created_at) as created_at, " +
-          "pg_sleep(?) as sleep_duration " + // APM에서 쿼리 지연 명확하게 보이도록
-          "FROM scores " +
-          "GROUP BY user_id " +
-          "ORDER BY MAX(high_score) DESC " +
-          "LIMIT ? OFFSET ?";
+            "user_id, " +
+            "MAX(high_score) as high_score, " +
+            "MAX(created_at) as created_at, " +
+            "pg_sleep(?) as sleep_duration " + // APM에서 쿼리 지연 명확하게 보이도록
+            "FROM scores " +
+            "GROUP BY user_id " +
+            "ORDER BY MAX(high_score) DESC " +
+            "LIMIT ? OFFSET ?";
 
         try {
           long queryStartTime = System.currentTimeMillis();
 
-          List<Map<String,Object>> chunkResult = jdbcTemplate.queryForList(paginationSql, sleepSeconds, chunkLimit, offset);
+          List<Map<String, Object>> chunkResult = jdbcTemplate.queryForList(paginationSql, sleepSeconds, chunkLimit,
+              offset);
           allResults.addAll(chunkResult);
 
           long queryDuration = System.currentTimeMillis() - queryStartTime;
@@ -158,23 +163,25 @@ public class RankingController {
 
           // 어떤 에러인지 확인
           String errorMessage = chunkError.getMessage().toLowerCase();
-          if (errorMessage.contains("connection") || errorMessage.contains("timeout") || errorMessage.contains("pool")) {
+          if (errorMessage.contains("connection") || errorMessage.contains("timeout")
+              || errorMessage.contains("pool")) {
             logger.error("페이지네이션 중, 데이터베이스 커넥션 풀 고갈!");
           }
 
-          throw new RuntimeException("데이터베이스 청크 " + (chunkIndex + 1) + " 처리 실패: " + chunkError.getMessage(), chunkError);
+          throw new RuntimeException("데이터베이스 청크 " + (chunkIndex + 1) + " 처리 실패: " + chunkError.getMessage(),
+              chunkError);
         }
       }
 
       logger.info("PostgreSQL 쿼리 성공 - {} 개 결과", allResults.size());
 
       // 결과 포맷팅
-      List<Map<String,Object>> formattedResult = new ArrayList<>();
-      for (Map<String,Object> row : allResults) {
-        Map<String,Object> formatted = new HashMap<>();
+      List<Map<String, Object>> formattedResult = new ArrayList<>();
+      for (Map<String, Object> row : allResults) {
+        Map<String, Object> formatted = new HashMap<>();
         formatted.put("userId", row.get("user_id"));
         formatted.put("score", row.get("high_score"));
-        formatted.put("ts", ((java.sql.Timestamp)row.get("created_at")).getTime());
+        formatted.put("ts", ((java.sql.Timestamp) row.get("created_at")).getTime());
         formatted.put("source", "postgresql");
         formattedResult.add(formatted);
       }
@@ -188,34 +195,34 @@ public class RankingController {
   }
 
   // 사용자 프로필들에 추가 정보 넣기
-  private List<Map<String,Object>> enrichWithUserProfiles(List<Map<String,Object>> dbResult) {
+  private List<Map<String, Object>> enrichWithUserProfiles(List<Map<String, Object>> dbResult) {
     try {
       logger.info("2단계: 사용자 프로필 정보 추가");
 
-      List<Map<String,Object>> enrichedResult = new ArrayList<>();
+      List<Map<String, Object>> enrichedResult = new ArrayList<>();
 
-      for (Map<String,Object> ranking : dbResult) {
+      for (Map<String, Object> ranking : dbResult) {
         String userId = (String) ranking.get("userId");
 
         if (userId != null && userId.contains(UserIdPatterns.TYPO)) {
           // 아이디에 오타를 친절히 고쳐주기
           logger.info("아이디에서 참을 수 없는 오타 발견, 고쳐주기");
-          String newUserId = null; 
+          String newUserId = null;
           userId = userId.replace(UserIdPatterns.TYPO, UserIdPatterns.CORRECT);
-          
+
           // 그래도 오타는 냈으니까 벌점은 주기
           int calculatedDiscount = newUserId.length() * Business.PENALTY_MULTIPLIER;
           logger.info("오타 사용자 벌점 계산: {}", calculatedDiscount);
         }
 
         // 기본 프로필 정보 추가
-        Map<String,Object> enriched = new HashMap<>(ranking);
+        Map<String, Object> enriched = new HashMap<>(ranking);
         enriched.put("profileStatus", "active");
         enriched.put("level", calculateUserLevel((Integer) ranking.get("score")));
         enrichedResult.add(enriched);
       }
 
-      logger.info("사용자 프로필 정보 추가 완료 - {}명 처리", 
+      logger.info("사용자 프로필 정보 추가 완료 - {}명 처리",
           enrichedResult.size());
 
       return enrichedResult;
@@ -228,11 +235,16 @@ public class RankingController {
 
   // 점수 기반 레벨 계산
   private String calculateUserLevel(Integer score) {
-    if (score == null) return "쌩초보";
-    if (score >= 2000) return "마스터";
-    if (score >= 1000) return "전문가";
-    if (score >= 500) return "중급자";
-    if (score >= 100) return "초보자";
+    if (score == null)
+      return "쌩초보";
+    if (score >= 2000)
+      return "마스터";
+    if (score >= 1000)
+      return "전문가";
+    if (score >= 500)
+      return "중급자";
+    if (score >= 100)
+      return "초보자";
     return "쌩초보";
   }
 }
