@@ -222,7 +222,7 @@ public class RankingController {
         enrichedResult.add(enriched);
       }
 
-      logger.info("사용자 프로필 정보 추가 완료 - {}명 처리",
+      logger.info("사용자 프로필 정보 추가 완료 - {}명 처리 ",
           enrichedResult.size());
 
       return enrichedResult;
