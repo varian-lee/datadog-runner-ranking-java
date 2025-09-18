@@ -98,7 +98,7 @@ public class RankingController {
     try {
       logger.info("1단계: PostgreSQL에서 랭킹 데이터 조회~~~");
 
-      // 10개씩 chunk로 나누어서 sequential하게 처리
+      // 10개씩 chunk로 나누어서 sequential하게 처리 - 일부러..
       final int CHUNK_SIZE = Database.CHUNK_SIZE;
       int totalChunks = (int) Math.ceil((double) limit / CHUNK_SIZE);
 
@@ -121,25 +121,15 @@ public class RankingController {
             chunkIndex + 1, totalChunks, offset, chunkLimit);
 
         // Connection을 더 오래 보유하는 쿼리 - pg_sleep() 으로 지연 시간 추가
-        double sleepSeconds = 0.002; // 기본 2ms
+        double sleepSeconds = 0.003; // 기본 3ms
 
-        // pg_sleep 단계별 조정 (10개 미만=2ms, 10-19개=5ms, 20개+=제곱증가)
-        if (totalChunks >= 19) {
-          // 200개 이상 (20+ chunks): 제곱 증가로 극심한 타임아웃 유도
-          double baseSleep = 0.005; // 5ms
-          double progressiveSleep = (chunkIndex * chunkIndex * 2) / 1000.0; // ms -> seconds
-          sleepSeconds = baseSleep + progressiveSleep;
-        } else if (totalChunks >= 10) {
-          // 100개 (10-19 chunks): 일정한 부하로 적당한 부하 유도
-          sleepSeconds = 0.005; // 5ms 고정
-        }
-
-        String paginationSql = "SELECT " +
-            "user_id, " +
-            "MAX(high_score) as high_score, " +
-            "MAX(created_at) as created_at, " +
-            "pg_sleep(?) as sleep_duration " + // APM에서 쿼리 지연 명확하게 보이도록
+        // CTE를 사용한 개선된 pagination SQL - pg_sleep을 안전하게 분리
+        String paginationSql = "WITH delay AS (SELECT pg_sleep(?)) " +
+            "SELECT user_id, " +
+            "MAX(high_score) AS high_score, " +
+            "MAX(created_at) AS created_at " +
             "FROM scores " +
+            "CROSS JOIN delay " +
             "GROUP BY user_id " +
             "ORDER BY MAX(high_score) DESC " +
             "LIMIT ? OFFSET ?";
