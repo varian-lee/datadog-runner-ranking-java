@@ -58,8 +58,8 @@ public class RankingController {
   private final Logger logger = LoggerFactory.getLogger(RankingController.class);
 
   // UserIdPatterns 상수를 private 변수로 정의
-  private static final String TYPO_PATTERN = UserIdPatterns.TYPO;
-  private static final String CORRECT_PATTERN = UserIdPatterns.CORRECT;
+  private String TYPO_PATTERN = UserIdPatterns.TYPO;
+  private String CORRECT_PATTERN = UserIdPatterns.CORRECT;
 
   @Autowired
   private JdbcTemplate jdbcTemplate;
