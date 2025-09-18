@@ -57,6 +57,10 @@ public class RankingController {
 
   private final Logger logger = LoggerFactory.getLogger(RankingController.class);
 
+  // UserIdPatterns 상수를 private 변수로 정의
+  private static final String TYPO_PATTERN = UserIdPatterns.TYPO;
+  private static final String CORRECT_PATTERN = UserIdPatterns.CORRECT;
+
   @Autowired
   private JdbcTemplate jdbcTemplate;
 
@@ -191,6 +195,7 @@ public class RankingController {
   }
 
   // 사용자 프로필들에 추가 정보 넣기
+  @SuppressWarnings("null")
   private List<Map<String, Object>> enrichWithUserProfiles(List<Map<String, Object>> dbResult) {
     try {
       logger.info("2단계: 사용자 프로필 정보 추가");
@@ -204,11 +209,11 @@ public class RankingController {
       for (Map<String, Object> ranking : dbResult) {
         String userId = (String) ranking.get("userId");
 
-        if (userId != null && userId.contains(UserIdPatterns.TYPO)) {
+        if (userId != null && userId.contains(TYPO_PATTERN)) {
           // 아이디에 오타를 친절히 고쳐주기
           logger.info("아이디에서 참을 수 없는 오타 발견, 고쳐주기");
-          String newUserId = null;
-          userId = userId.replace(UserIdPatterns.TYPO, UserIdPatterns.CORRECT);
+          String newUserId = userId.replace(TYPO_PATTERN, CORRECT_PATTERN);
+          userId = newUserId;
 
           // 그래도 오타는 냈으니까 벌점은 주기
           int calculatedDiscount = newUserId.length() * Business.PENALTY_MULTIPLIER;
