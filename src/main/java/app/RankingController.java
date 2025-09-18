@@ -121,7 +121,7 @@ public class RankingController {
             chunkIndex + 1, totalChunks, offset, chunkLimit);
 
         // Connection을 더 오래 보유하는 쿼리 - pg_sleep() 으로 지연 시간 추가
-        double sleepSeconds = 0.003; // 기본 3ms
+        double sleepSeconds = 0.03; // 기본 30ms
 
         // CTE를 사용한 개선된 pagination SQL - pg_sleep을 안전하게 분리
         String paginationSql = "WITH delay AS (SELECT pg_sleep(?)) " +
