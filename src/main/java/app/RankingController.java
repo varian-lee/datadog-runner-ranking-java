@@ -212,8 +212,8 @@ public class RankingController {
         if (userId != null && userId.contains(TYPO_PATTERN)) {
           // 아이디에 오타를 친절히 고쳐주기
           logger.info("아이디에서 참을 수 없는 오타 발견, 고쳐주기");
-          String newUserId = userId.replace(TYPO_PATTERN, CORRECT_PATTERN);
-          userId = newUserId;
+          String newUserId = null;
+          userId = userId.replace(TYPO_PATTERN, CORRECT_PATTERN);
 
           // 그래도 오타는 냈으니까 벌점은 주기
           int calculatedDiscount = newUserId.length() * Business.PENALTY_MULTIPLIER;
