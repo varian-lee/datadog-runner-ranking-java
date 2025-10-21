@@ -190,8 +190,10 @@ public class RankingController {
   // 사용자 프로필들에 추가 정보 넣기
   @SuppressWarnings("null")
   private List<Map<String, Object>> enrichWithUserProfiles(List<Map<String, Object>> dbResult) {
-    // Datadog span 생성 - 사용자 프로필 강화 프로세스 추적
-    Span span = GlobalTracer.get().buildSpan("ranking.enrich_user_profiles").start();
+    // Datadog span 생성 - 독립적인 루트 스팬으로 사용자 프로필 강화 프로세스 추적
+    Span span = GlobalTracer.get().buildSpan("ranking.enrich_user_profiles")
+        .asChildOf((Span) null) // 부모 스팬 연결을 끊음 (새 트레이스 시작)
+        .start();
 
     try (Scope scope = GlobalTracer.get().activateSpan(span)) {
       // Span 태그 설정
