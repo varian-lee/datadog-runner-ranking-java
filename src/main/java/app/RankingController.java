@@ -36,6 +36,9 @@ import org.springframework.web.bind.annotation.RestController;
 import app.Constants.Business;
 import app.Constants.Database;
 import app.Constants.UserIdPatterns;
+import io.opentracing.Scope;
+import io.opentracing.Span;
+import io.opentracing.util.GlobalTracer;
 
 @RestController
 @CrossOrigin(origins = "*", allowedHeaders = {
@@ -187,14 +190,29 @@ public class RankingController {
   // 사용자 프로필들에 추가 정보 넣기
   @SuppressWarnings("null")
   private List<Map<String, Object>> enrichWithUserProfiles(List<Map<String, Object>> dbResult) {
-    try {
+    // Datadog span 생성 - 사용자 프로필 강화 프로세스 추적
+    Span span = GlobalTracer.get().buildSpan("ranking.enrich_user_profiles").start();
+
+    try (Scope scope = GlobalTracer.get().activateSpan(span)) {
+      // Span 태그 설정
+      span.setTag("component", "ranking-service");
+      span.setTag("operation.type", "user_profile_enrichment");
+      span.setTag("span.kind", "internal");
+      span.setTag("resource.name", "enrichWithUserProfiles");
+
       logger.info("2단계: 사용자 프로필 정보 추가");
 
       if (dbResult == null) {
+        span.setTag("error", true);
+        span.setTag("error.msg", "입력 데이터가 NULL입니다");
         throw new IllegalArgumentException("입력 데이터가 NULL입니다");
       }
 
+      // 입력 데이터 메트릭 추가
+      span.setTag("input.record_count", dbResult.size());
+
       List<Map<String, Object>> enrichedResult = new ArrayList<>();
+      int typoFixCount = 0;
 
       for (Map<String, Object> ranking : dbResult) {
         String userId = (String) ranking.get("userId");
@@ -202,12 +220,17 @@ public class RankingController {
         if (userId != null && userId.contains(TYPO_PATTERN)) {
           // 아이디에 오타를 친절히 고쳐주기
           logger.info("아이디에서 참을 수 없는 오타 발견, 고쳐주기");
-          String newUserId = null;
-          userId = userId.replace(TYPO_PATTERN, CORRECT_PATTERN);
+          String newUserId = userId.replace(TYPO_PATTERN, CORRECT_PATTERN);
+          userId = newUserId; // 수정된 userId 적용
+          typoFixCount++;
 
           // 그래도 오타는 냈으니까 벌점은 주기
-          int calculatedDiscount = newUserId.length() * Business.PENALTY_MULTIPLIER;
-          logger.info("오타 사용자 벌점 계산: {}", calculatedDiscount);
+          if (newUserId != null) {
+            int calculatedDiscount = newUserId.length() * Business.PENALTY_MULTIPLIER;
+            logger.info("오타 사용자 벌점 계산: {}", calculatedDiscount);
+          } else {
+            logger.warn("사용자 ID 수정 중 NULL 발생, 원본 사용");
+          }
         }
 
         // 기본 프로필 정보 추가
@@ -216,6 +239,11 @@ public class RankingController {
         enriched.put("level", calculateUserLevel((Integer) ranking.get("score")));
         enrichedResult.add(enriched);
       }
+
+      // 처리 결과 메트릭 추가
+      span.setTag("output.record_count", enrichedResult.size());
+      span.setTag("typo_fixes_applied", typoFixCount);
+      span.setTag("success", true);
 
       logger.info("사용자 프로필 정보 추가 완료 - {}명 처리",
           enrichedResult.size());
@@ -231,6 +259,9 @@ public class RankingController {
     } catch (Exception e) {
       logger.error("사용자 프로필 정보 추가 중 예상치 못한 오류: {}", e.getMessage(), e);
       throw new RuntimeException("프로필 처리 실패: " + e.getMessage(), e);
+    } finally {
+      // Span 수동으로 종료 (try-with-resources로 scope는 자동 관리됨)
+      span.finish();
     }
   }
 

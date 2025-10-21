@@ -54,6 +54,21 @@
       <version>7.4</version>
     </dependency>
     
+    <dependency>
+      <groupId>io.opentracing</groupId>
+      <artifactId>opentracing-api</artifactId>
+      <version>0.33.0</version>
+    </dependency>
+    <dependency>
+      <groupId>io.opentracing</groupId>
+      <artifactId>opentracing-util</artifactId>
+      <version>0.33.0</version>
+    </dependency>
+    <dependency>
+      <groupId>com.datadoghq</groupId>
+      <artifactId>dd-trace-ot</artifactId>
+      <version>1.41.0</version>
+    </dependency>
   </dependencies>
 
   <build>
