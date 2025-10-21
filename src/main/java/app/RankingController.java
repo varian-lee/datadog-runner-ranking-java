@@ -38,6 +38,7 @@ import app.Constants.Database;
 import app.Constants.UserIdPatterns;
 import io.opentracing.Scope;
 import io.opentracing.Span;
+import io.opentracing.Tracer;
 import io.opentracing.util.GlobalTracer;
 
 @RestController
@@ -190,28 +191,53 @@ public class RankingController {
   // 사용자 프로필들에 추가 정보 넣기
   @SuppressWarnings("null")
   private List<Map<String, Object>> enrichWithUserProfiles(List<Map<String, Object>> dbResult) {
-    // Datadog span 생성 - 독립적인 루트 스팬으로 사용자 프로필 강화 프로세스 추적
-    Span span = GlobalTracer.get().buildSpan("ranking.enrich_user_profiles")
-        .asChildOf((Span) null) // 부모 스팬 연결을 끊음 (새 트레이스 시작)
+    Tracer tracer = GlobalTracer.get();
+    Span current = tracer.activeSpan();
+
+    // 1️⃣ 기존 동작: 일반적인 자식 스팬으로 메인 로직 실행 (기존 트레이스에 연결)
+    Span childSpan = tracer.buildSpan("enrichWithUserProfiles")
         .start();
 
-    try (Scope scope = GlobalTracer.get().activateSpan(span)) {
-      // Span 태그 설정
-      span.setTag("component", "ranking-service");
-      span.setTag("operation.type", "user_profile_enrichment");
-      span.setTag("span.kind", "internal");
-      span.setTag("resource.name", "enrichWithUserProfiles");
+    // 2️⃣ 추가: 독립적인 새 트레이스 생성 (병렬 실행)
+    Span newRoot = tracer.buildSpan("ranking.enrich_user_profiles")
+        .ignoreActiveSpan() // ★ 활성 스팬을 부모로 잡지 않음 → 새 트레이스 시작
+        .start();
+
+    try (Scope childScope = tracer.activateSpan(childSpan);
+        Scope newTraceScope = tracer.activateSpan(newRoot)) {
+      // 두 스팬 모두 활성화
+
+      // (선택) 기존 스팬/트레이스 ID를 태그로 남겨서 대시보드/로그에서 상호 참조
+      if (current != null) {
+        newRoot.setTag("link.trace_id", current.context().toTraceId());
+        newRoot.setTag("link.span_id", current.context().toSpanId());
+      }
+
+      // 독립 트레이스 태그 설정
+      newRoot.setTag("component", "ranking-service");
+      newRoot.setTag("operation.type", "user_profile_enrichment");
+      newRoot.setTag("span.kind", "internal");
+      newRoot.setTag("resource.name", "enrichWithUserProfiles");
+
+      // 기존 자식 스팬 태그 설정
+      childSpan.setTag("component", "ranking-service");
+      childSpan.setTag("operation.type", "user_profile_enrichment");
+      childSpan.setTag("span.kind", "internal");
 
       logger.info("2단계: 사용자 프로필 정보 추가");
 
       if (dbResult == null) {
-        span.setTag("error", true);
-        span.setTag("error.msg", "입력 데이터가 NULL입니다");
+        // 두 스팬 모두에 에러 정보 설정
+        newRoot.setTag("error", true);
+        newRoot.setTag("error.msg", "입력 데이터가 NULL입니다");
+        childSpan.setTag("error", true);
+        childSpan.setTag("error.msg", "입력 데이터가 NULL입니다");
         throw new IllegalArgumentException("입력 데이터가 NULL입니다");
       }
 
-      // 입력 데이터 메트릭 추가
-      span.setTag("input.record_count", dbResult.size());
+      // 입력 데이터 메트릭 추가 (두 스팬 모두에)
+      newRoot.setTag("input.record_count", dbResult.size());
+      childSpan.setTag("input.record_count", dbResult.size());
 
       List<Map<String, Object>> enrichedResult = new ArrayList<>();
       int typoFixCount = 0;
@@ -242,10 +268,14 @@ public class RankingController {
         enrichedResult.add(enriched);
       }
 
-      // 처리 결과 메트릭 추가
-      span.setTag("output.record_count", enrichedResult.size());
-      span.setTag("typo_fixes_applied", typoFixCount);
-      span.setTag("success", true);
+      // 처리 결과 메트릭 추가 (두 스팬 모두에)
+      newRoot.setTag("output.record_count", enrichedResult.size());
+      newRoot.setTag("typo_fixes_applied", typoFixCount);
+      newRoot.setTag("success", true);
+
+      childSpan.setTag("output.record_count", enrichedResult.size());
+      childSpan.setTag("typo_fixes_applied", typoFixCount);
+      childSpan.setTag("success", true);
 
       logger.info("사용자 프로필 정보 추가 완료 - {}명 처리",
           enrichedResult.size());
@@ -262,8 +292,9 @@ public class RankingController {
       logger.error("사용자 프로필 정보 추가 중 예상치 못한 오류: {}", e.getMessage(), e);
       throw new RuntimeException("프로필 처리 실패: " + e.getMessage(), e);
     } finally {
-      // Span 수동으로 종료 (try-with-resources로 scope는 자동 관리됨)
-      span.finish();
+      // 두 스팬 모두 수동으로 종료
+      childSpan.finish();
+      newRoot.finish();
     }
   }
 
