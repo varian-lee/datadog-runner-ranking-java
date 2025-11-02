@@ -54,7 +54,7 @@
       <version>7.4</version>
     </dependency>
     
-    <!-- Datadog OpenTracing (Datadog 환경용) -->
+    <!-- OpenTracing API (벤더 중립) -->
     <dependency>
       <groupId>io.opentracing</groupId>
       <artifactId>opentracing-api</artifactId>
@@ -65,11 +65,11 @@
       <artifactId>opentracing-util</artifactId>
       <version>0.33.0</version>
     </dependency>
-    <dependency>
-      <groupId>com.datadoghq</groupId>
-      <artifactId>dd-trace-ot</artifactId>
-      <version>1.41.0</version>
-    </dependency>
+    <!-- 
+    Datadog/New Relic의 javaagent가 런타임에 Tracer 구현체를 제공하므로
+    컴파일 타임 구현체(dd-trace-ot)는 선택사항입니다.
+    하지만 있어도 문제없습니다 (javaagent가 오버라이드함).
+    -->
   </dependencies>
 
   <build>
