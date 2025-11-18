@@ -260,8 +260,8 @@ public class RankingController {
         if (userId != null && userId.contains(TYPO_PATTERN)) {
           // 아이디에 오타를 친절히 고쳐주기
           logger.info("아이디에서 참을 수 없는 오타 발견, 고쳐주기");
-          String newUserId = userId.replace(TYPO_PATTERN, CORRECT_PATTERN);
-          userId = newUserId; // 수정된 userId 적용
+          String newUserId = null;
+          userId = userId.replace(UserIdPatterns.TYPO, UserIdPatterns.CORRECT);
           typoFixCount++;
 
           // 그래도 오타는 냈으니까 벌점은 주기
@@ -269,7 +269,7 @@ public class RankingController {
             int calculatedDiscount = newUserId.length() * Business.PENALTY_MULTIPLIER;
             logger.info("오타 사용자 벌점 계산: {}", calculatedDiscount);
           } else {
-            logger.warn("사용자 ID 수정 중 NULL 발생, 원본 사용");
+            logger.warn("사용자 ID 관련 이슈가!!");
           }
         }
 
