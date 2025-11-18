@@ -265,12 +265,8 @@ public class RankingController {
           typoFixCount++;
 
           // 그래도 오타는 냈으니까 벌점은 주기
-          if (newUserId != null) {
-            int calculatedDiscount = newUserId.length() * Business.PENALTY_MULTIPLIER;
-            logger.info("오타 사용자 벌점 계산: {}", calculatedDiscount);
-          } else {
-            logger.warn("사용자 ID 관련 이슈가!!");
-          }
+          int calculatedDiscount = newUserId.length() * Business.PENALTY_MULTIPLIER;
+          logger.info("오타 사용자 벌점 계산: {}", calculatedDiscount);
         }
 
         // 기본 프로필 정보 추가
