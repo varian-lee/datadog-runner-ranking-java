@@ -318,6 +318,6 @@ public class RankingController {
       return "중급자";
     if (score >= 100)
       return "초보자";
-    return "쌩초보";
+    return "쌩초보!!";
   }
 }
