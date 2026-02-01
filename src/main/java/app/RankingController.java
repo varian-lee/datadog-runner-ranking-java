@@ -93,7 +93,7 @@ public class RankingController {
   public List<Map<String, Object>> top(@RequestParam(value = "limit", defaultValue = "10") int limit) {
     long requestStartTime = System.currentTimeMillis();
 
-    logger.info("PostgreSQL 랭킹 조회 시작 - limit: {}", limit);
+    logger.info("PostgreSQL 랭킹 조회 시작!!! - limit: {}", limit);
 
     // 1단계: PostgreSQL 랭킹 쿼리 - 조금 복잡하게
     List<Map<String, Object>> dbResult = fetchFromPostgreSQL(limit);
