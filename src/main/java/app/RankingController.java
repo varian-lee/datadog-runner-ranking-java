@@ -89,6 +89,64 @@ public class RankingController {
     return response;
   }
 
+  // 🎮 인게임용 빠른 조회 - 각 유저의 최근 점수 (플레이 안했으면 0)
+  @GetMapping("/rankings/ingame")
+  public List<Map<String, Object>> ingame(@RequestParam(value = "userIds", defaultValue = "") String userIds) {
+    logger.info("인게임 최근 점수 조회 - userIds: {}", userIds);
+
+    try {
+      List<Map<String, Object>> formattedResult = new ArrayList<>();
+
+      if (userIds == null || userIds.isEmpty()) {
+        return formattedResult;
+      }
+
+      String[] userIdArray = userIds.split(",");
+      List<String> trimmedUserIds = new ArrayList<>();
+      for (String userId : userIdArray) {
+        String trimmed = userId.trim();
+        if (!trimmed.isEmpty()) {
+          trimmedUserIds.add(trimmed);
+        }
+      }
+
+      if (trimmedUserIds.isEmpty()) {
+        return formattedResult;
+      }
+
+      // IN 절로 한 번에 조회 + 각 유저별 최고 점수 + 최근 30분
+      String placeholders = String.join(",", trimmedUserIds.stream().map(u -> "?").toArray(String[]::new));
+      String sql = "SELECT user_id, MAX(high_score) AS high_score " +
+          "FROM scores " +
+          "WHERE user_id IN (" + placeholders + ") " +
+          "AND created_at >= NOW() - INTERVAL '30 minutes' " +
+          "GROUP BY user_id";
+
+      List<Map<String, Object>> results = jdbcTemplate.queryForList(sql, trimmedUserIds.toArray());
+
+      // 결과를 Map으로 변환
+      Map<String, Object> scoreMap = new HashMap<>();
+      for (Map<String, Object> row : results) {
+        scoreMap.put((String) row.get("user_id"), row.get("high_score"));
+      }
+
+      // 모든 요청된 userIds에 대해 결과 생성 (없으면 0)
+      for (String userId : trimmedUserIds) {
+        Map<String, Object> formatted = new HashMap<>();
+        formatted.put("user_id", userId);
+        formatted.put("score", scoreMap.getOrDefault(userId, 0));
+        formattedResult.add(formatted);
+      }
+
+      logger.info("인게임 최근 점수 조회 완료 - {}명", formattedResult.size());
+      return formattedResult;
+
+    } catch (Exception e) {
+      logger.error("인게임 최근 점수 조회 실패: {}", e.getMessage());
+      return new ArrayList<>();
+    }
+  }
+
   @GetMapping("/rankings/top")
   public List<Map<String, Object>> top(@RequestParam(value = "limit", defaultValue = "10") int limit) {
     long requestStartTime = System.currentTimeMillis();
