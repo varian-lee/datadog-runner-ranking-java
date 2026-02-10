@@ -317,7 +317,7 @@ public class RankingController {
 
         if (userId != null && userId.contains(TYPO_PATTERN)) {
           // 아이디에 오타를 친절히 고쳐주기
-          logger.info("아이디에서 참을 수 없는 오타 발견!! 고쳐주기");
+          logger.info("아이디에서 참을 수 없는 오타 발견! 고쳐주기");
           String newUserId = null;
           userId = userId.replace(UserIdPatterns.TYPO, UserIdPatterns.CORRECT);
           typoFixCount++;
