@@ -10,12 +10,16 @@ RUN mvn -q -DskipTests package
 FROM eclipse-temurin:21-jre
 WORKDIR /app
 
+# Datadog Java Agent 다운로드
+ADD https://dtdg.co/latest-java-tracer /app/dd-java-agent.jar
+
 COPY --from=build /build/target/ranking-java.jar app.jar
 EXPOSE 8081
 
-# OpenTelemetry Manual Instrumentation만 사용
-# Auto-instrumentation은 각 벤더의 javaagent가 담당:
-# - Datadog: Kubernetes Admission Controller가 dd-java-agent.jar 주입
-# - New Relic: initContainer 또는 Admission Controller가 newrelic-agent.jar 주입
-# - OpenTelemetry: 필요 시 K8s Operator가 otel-javaagent.jar 주입
-ENTRYPOINT ["java","-jar","/app/app.jar"]
+# Datadog Java Agent와 함께 실행
+ENV DD_SERVICE=ranking-java
+ENV DD_ENV=demo
+ENV DD_LOGS_INJECTION=true
+ENV DD_TRACE_ENABLED=true
+
+ENTRYPOINT ["java", "-javaagent:/app/dd-java-agent.jar", "-jar", "/app/app.jar"]
